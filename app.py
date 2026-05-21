@@ -15,7 +15,7 @@ from system.scheduler.events import RequestForegroundPushEvent, RequestForegroun
 
 class Throbber:
 
-    def __init__(self, duration):
+    def __init__(self, duration=1000):
         # Total duration of the animation in milliseconds
         self._duration = duration
 
@@ -40,22 +40,21 @@ class Throbber:
 
 class WaitingForFixStatus(Throbber):
 
-    def __init__(self):
-        super().__init__(1000)
-        self._msg = "Awaiting GPS Fix"
-
     def draw(self, ctx):
-        ctx.save()
 
         # Display message
+        ctx.save()
+        ctx.translate(0, -40)
         ctx.font_size = 22
         ctx.text_align = ctx.CENTER
         ctx.text_baseline = ctx.MIDDLE
-        ctx.rgb(0.9, 0.9, 0.9).move_to(0, 0).text(self._msg)
+        ctx.rgb(0.9, 0.9, 0.9).move_to(0, 0).text("Awaiting GPS Fix")
+        ctx.restore()
 
         # Display icon
+        ctx.save()
         ctx.line_width = 5
-        ctx.translate(0, 30).rotate(math.pi / 4).rgba(1, 0.75, 0, 1 * self.throb)
+        ctx.translate(0, 50).rotate(math.pi / 4).rgba(1, 0.75, 0, 1 * self.throb)
         ctx.begin_path()
         ctx.arc(0, 0, 20, 0, math.pi, False)
         ctx.close_path().stroke()
@@ -66,24 +65,23 @@ class WaitingForFixStatus(Throbber):
 
 class HexpansionMissingStatus(Throbber):
 
-    def __init__(self):
-        super().__init__(1000)
-        self._msg = "No GPS Hexpansion"
-
     def draw(self, ctx):
-        ctx.save()
 
         # Display message
+        ctx.save()
+        ctx.translate(0, -40)
         ctx.font_size = 22
         ctx.text_align = ctx.CENTER
         ctx.text_baseline = ctx.MIDDLE
-        ctx.rgb(0.9, 0.9, 0.9).move_to(0, 0).text(self._msg)
+        ctx.rgb(0.9, 0.9, 0.9).move_to(0, 0).text("No GPS Hexpansion")
+        ctx.restore()
 
         # Display icon
+        ctx.save()
         ctx.line_width = 5
-        ctx.translate(0, 20).rgba(0.93, 0.14, 0, 1 * self.throb)
-        ctx.begin_path().move_to(0, 0)
-        for vert in [ (20, 0), (20, 30), (0, 30), (-20, 20), (-20, 10) ]:
+        ctx.translate(0, 50).rgba(0.93, 0.14, 0, 1 * self.throb)
+        ctx.begin_path().move_to(0, -15)
+        for vert in [ (20, -15), (20, 15), (0, 15), (-20, 5), (-20, -5) ]:
             ctx.line_to(*vert)
         ctx.close_path().stroke()
         ctx.restore()
@@ -104,9 +102,6 @@ class Speedo(app.App):
         # Current speed and selected display units
         self.speed = 0
         self.units = 1
-
-        # Position for speed readout text
-        self.spd_pos = None
 
         # Subscribe to events
         eventbus.on_async(RequestForegroundPushEvent, self._resume, self)
@@ -171,10 +166,10 @@ class Speedo(app.App):
         ctx.rgb(0.13, 0.19, 0.09).rectangle(-120, -120, 240, 240).fill()
 
         # Render speed read out
-        ctx.font_size = 70
+        ctx.font_size = 65
         ctx.text_align = ctx.RIGHT
         ctx.text_baseline = ctx.MIDDLE
-        spd_pos = (ctx.text_width("0.0") / 2, 0)
+        spd_pos = (ctx.text_width("0.0") / 2, 5)
         ctx.rgb(1, 1, 1).move_to(*spd_pos).text(f"{self.speed:.1f}")
 
         # Render units indicator
@@ -185,7 +180,6 @@ class Speedo(app.App):
 
         # Render status message
         if self.status:
-            ctx.translate(0, 40)
             self.status.draw(ctx)
 
         ctx.restore()
