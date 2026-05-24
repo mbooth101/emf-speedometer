@@ -96,11 +96,14 @@ class Speedo(app.App):
 
     def __init__(self):
         self.button_states = Buttons(self)
-        self.gps = self._find_gps_module()
+
+        self.gps = None
         self.status = None
 
+        self._find_gps_module()
+
         # Current speed and selected display units
-        self.speed = 0
+        self.speed = 0.0
         self.units = 1
 
         # Subscribe to events
@@ -118,8 +121,11 @@ class Speedo(app.App):
             self.brightness = 0.1
 
     def _find_gps_module(self):
-        gps_app = get_app_by_vid_pid(0xCAFE, 0x1295)
-        return gps_app or None
+        # Get GPS app from hexpansion EEPROM
+        self.gps = get_app_by_vid_pid(0xCAFE, 0x1295)
+        # Subscribe to GPS events
+        if self.gps:
+            eventbus.on(self.gps.GPSEvent, self._handle_gps_event, self)
 
     def update(self, delta):
         # Exit the app
@@ -146,20 +152,9 @@ class Speedo(app.App):
             # There is a valid positioning fix
             self.status = None
 
+        # Update status message
         if self.status:
             self.status.update(delta)
-
-        # Determine current speed
-        self.speed = 0.0
-        if not self.status:
-            if self.units == 0:
-                self.speed = self.gps.speed_kts
-            if self.units == 1:
-                self.speed = self.gps.speed_mph
-            if self.units == 2:
-                self.speed = self.gps.speed_kmh
-            if self.units == 3:
-                self.speed = self.gps.speed_ms
 
     def draw(self, ctx):
         ctx.save()
@@ -199,11 +194,25 @@ class Speedo(app.App):
 
     async def _mounted(self, e: HexpansionMountedEvent):
         if not self.gps:
-            self.gps = self._find_gps_module()
+            self._find_gps_module()
 
     async def _unmounted(self, e: HexpansionUnmountedEvent):
         if e.port == self.gps.config.port:
+            eventbus.remove(self.gps.GPSEvent, self._handle_gps_event, self)
             self.gps = None
+
+    def _handle_gps_event(self, e):
+        # Determine speed for selected units
+        self.speed = 0.0
+        if not self.status:
+            if self.units == 0:
+                self.speed = e.speed
+            if self.units == 1:
+                self.speed = e.speed * 1.151
+            if self.units == 2:
+                self.speed = e.speed * 1.852
+            if self.units == 3:
+                self.speed = e.speed * 0.514
 
 
 __app_export__ = Speedo # pylint: disable=invalid-name
