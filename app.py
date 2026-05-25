@@ -92,42 +92,80 @@ class HexpansionMissingStatus(Throbber):
 
 class Speed:
 
-    # Conversion factors from knots
+    # Conversion factors from knots and dial ranges
     UNITS = [
-        {'unit': "kts", 'factor': 1.0},
-        {'unit': "mph", 'factor': 1.151},
-        {'unit': "km/h", 'factor': 1.852},
-        {'unit': "m/s", 'factor': 0.514},
+        {'unit': "kts", 'factor': 1.0, 'range': [10, 20]},
+        {'unit': "mph", 'factor': 1.151, 'range': [10, 20]},
+        {'unit': "km/h", 'factor': 1.852, 'range': [15, 30]},
+        {'unit': "m/s", 'factor': 0.514, 'range': [5, 10]},
     ]
 
     def __init__(self):
-        # Current speed and selected display units
+        # Current speed from GPS
         self.speed = 0.0
+
+        # Selected display units and dial range
         self.units = 1
+        self.range = 0
+
+        self.valid = False
 
     def select_next_units(self, direction):
         self.units = (self.units + direction) % len(Speed.UNITS)
 
+    def select_next_range(self, direction):
+        self.range = (self.range + direction) % len(Speed.UNITS[self.units]['range'])
+
     def draw(self, ctx):
         ctx.save()
+        ctx.rgb(1, 1, 1)
+
+        # Render units indicator widget
+        ctx.font_size = 25
+        ctx.text_align = ctx.CENTER
+        ctx.text_baseline = ctx.MIDDLE
+        ctx.begin_path().move_to(0, 64).line_to(-10, 70).line_to(10, 70).close_path().fill()
+        ctx.move_to(0, 85).text(Speed.UNITS[self.units]['unit'])
+        ctx.begin_path().move_to(0, 106).line_to(-10, 100).line_to(10, 100).close_path().fill()
 
         # Render speed read out
-        ctx.font_size = 65
-        ctx.text_align = ctx.RIGHT
-        ctx.text_baseline = ctx.MIDDLE
-        spd_pos = (ctx.text_width("0.0") / 2, 5)
-        ctx.rgb(1, 1, 1).move_to(*spd_pos).text(f"{self.speed:.1f}")
-
-        # Render units indicator
-        ctx.font_size = 25
-        ctx.text_align = ctx.LEFT
-        ctx.text_baseline = ctx.TOP
-        ctx.rgb(0.9, 0.9, 0.9).move_to(spd_pos[0] + 5, 5).text(Speed.UNITS[self.units]['unit'])
+        if self.valid:
+            ctx.font_size = 65
+            ctx.text_align = ctx.RIGHT
+            ctx.text_baseline = ctx.MIDDLE
+            spd_pos = (ctx.text_width("0.0") / 2, 5)
+            speed_converted = self.speed * Speed.UNITS[self.units]['factor']
+            ctx.move_to(*spd_pos).text(f"{speed_converted:.1f}")
 
         ctx.restore()
 
+        ctx.save()
+
+        # Render dial graticules
+        sectors = 5
+        max_speed = Speed.UNITS[self.units]['range'][self.range]
+        arc_extent = math.pi * 2 - math.pi / 3
+        arc_sector = arc_extent / sectors
+        ctx.line_width = 8
+        ctx.font_size = 22
+        ctx.text_align = ctx.CENTER
+        ctx.text_baseline = ctx.MIDDLE
+        ctx.rgb(1, 1, 1)
+        for i in range(sectors + 1):
+            rot = math.pi / 6 + arc_sector * i
+            spd = int((max_speed / sectors) * i)
+            ctx.save()
+            ctx.move_to(-(math.sin(rot) * 80), math.cos(rot) * 80).text(f"{spd}")
+            ctx.rotate(rot)
+            ctx.move_to(0, 120).line_to(0, 95).stroke()
+            ctx.restore()
+
+        ctx.restore()
+
+
     def _handle_gps_event(self, e):
-        self.speed = e.speed * Speed.UNITS[self.units]['factor']
+        self.valid = e.position is not None
+        self.speed = e.speed
 
 
 class Speedo(app.App):
@@ -179,6 +217,14 @@ class Speedo(app.App):
             self.speed.select_next_units(-1)
             self.button_states.clear()
 
+        # Dial range selection
+        if self.button_states.get(BUTTON_TYPES["RIGHT"]):
+            self.speed.select_next_range(1)
+            self.button_states.clear()
+        if self.button_states.get(BUTTON_TYPES["LEFT"]):
+            self.speed.select_next_range(-1)
+            self.button_states.clear()
+
         # Check GPS module status
         if not self.gps:
             # GPS hexpansion module is not plugged in
@@ -197,17 +243,11 @@ class Speedo(app.App):
     def draw(self, ctx):
         ctx.rgb(0.13, 0.19, 0.09).rectangle(-120, -120, 240, 240).fill()
 
-        ctx.save()
-        ctx.text_align = ctx.CENTER
-        ctx.text_baseline = ctx.MIDDLE
+        self.speed.draw(ctx)
 
         # Render status message/speed readout
         if self.status:
             self.status.draw(ctx)
-        else:
-            self.speed.draw(ctx)
-
-        ctx.restore()
 
     async def _resume(self, _: RequestForegroundPushEvent):
         # Disable firmware LED pattern
@@ -230,6 +270,7 @@ class Speedo(app.App):
         if e.port == self.gps.config.port:
             eventbus.remove(self.gps.GPSEvent, self.speed._handle_gps_event, self)
             self.gps = None
+            self.speed.valid = False
 
 
 __app_export__ = Speedo # pylint: disable=invalid-name
