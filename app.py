@@ -105,6 +105,9 @@ class Speed:
         self.speed = 0.0
         self.units = 1
 
+    def select_next_units(self, direction):
+        self.units = (self.units + direction) % len(Speed.UNITS)
+
     def draw(self, ctx):
         ctx.save()
 
@@ -170,10 +173,10 @@ class Speedo(app.App):
 
         # Units selection
         if self.button_states.get(BUTTON_TYPES["UP"]):
-            self.units = (self.units + 1) % len(Speedo.UNITS)
+            self.speed.select_next_units(1)
             self.button_states.clear()
         if self.button_states.get(BUTTON_TYPES["DOWN"]):
-            self.units = (self.units - 1) % len(Speedo.UNITS)
+            self.speed.select_next_units(-1)
             self.button_states.clear()
 
         # Check GPS module status
