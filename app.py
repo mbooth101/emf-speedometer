@@ -96,7 +96,13 @@ class HexpansionMissingStatus(Throbber):
 
 class Speedo(app.App):
 
-    UNITS = ["kts", "mph", "km/h", "m/s"]
+    # Conversion factors from knots
+    UNITS = [
+        {'unit': "kts", 'factor': 1.0},
+        {'unit': "mph", 'factor': 1.151},
+        {'unit': "km/h", 'factor': 1.852},
+        {'unit': "m/s", 'factor': 0.514},
+    ]
 
     STATUS_MISSING = HexpansionMissingStatus()
     STATUS_WAIT = WaitingForFixStatus()
@@ -178,7 +184,7 @@ class Speedo(app.App):
         ctx.font_size = 25
         ctx.text_align = ctx.LEFT
         ctx.text_baseline = ctx.TOP
-        ctx.rgb(0.9, 0.9, 0.9).move_to(spd_pos[0] + 5, 0).text(f"{Speedo.UNITS[self.units]}")
+        ctx.rgb(0.9, 0.9, 0.9).move_to(spd_pos[0] + 5, 0).text(f"{Speedo.UNITS[self.units]['unit']}")
 
         # Render status message
         if self.status:
@@ -212,14 +218,7 @@ class Speedo(app.App):
         # Determine speed for selected units
         self.speed = 0.0
         if not self.status:
-            if self.units == 0:
-                self.speed = e.speed
-            if self.units == 1:
-                self.speed = e.speed * 1.151
-            if self.units == 2:
-                self.speed = e.speed * 1.852
-            if self.units == 3:
-                self.speed = e.speed * 0.514
+            self.speed = e.speed * Speedo.UNITS[self.units]['factor']
 
 
 __app_export__ = Speedo # pylint: disable=invalid-name
