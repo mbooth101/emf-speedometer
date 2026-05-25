@@ -54,16 +54,16 @@ class WaitingForFixStatus(Throbber):
         ctx.font_size = 25
         ctx.text_align = ctx.CENTER
         ctx.text_baseline = ctx.TOP
-        ctx.rgb(0.9, 0.9, 0.9).move_to(0, 5).text("Awaiting GPS Fix")
+        ctx.rgb(0.9, 0.9, 0.9).move_to(0, 15).text("Awaiting GPS Fix")
 
         # Display icon
         ctx.line_width = 5
-        ctx.translate(0, -30).rotate(math.pi / 4).rgba(1, 0.75, 0, 1 * self.throb)
+        ctx.translate(0, -20).rotate(math.pi / 4).rgba(1, 0.75, 0, 1 * self.throb)
         ctx.begin_path()
         ctx.arc(0, 0, 20, 0, math.pi, False)
         ctx.close_path().stroke()
         ctx.move_to(0, 0).line_to(0, -10).stroke()
-        ctx.arc(0, -10, 4, 0, 2 * math.pi, False).fill()
+        ctx.arc(0, -12, 4, 0, 2 * math.pi, False).fill()
 
         ctx.restore()
 
@@ -77,13 +77,13 @@ class HexpansionMissingStatus(Throbber):
         ctx.font_size = 25
         ctx.text_align = ctx.CENTER
         ctx.text_baseline = ctx.TOP
-        ctx.rgb(0.9, 0.9, 0.9).move_to(0, 5).text("No GPS Hexpansion")
+        ctx.rgb(0.9, 0.9, 0.9).move_to(0, 15).text("No GPS Hexpansion")
 
         # Display icon
         ctx.line_width = 5
-        ctx.translate(0, -30).rgba(0.93, 0.14, 0, 1 * self.throb)
-        ctx.begin_path().move_to(0, -15)
-        for vert in [ (20, -15), (20, 15), (0, 15), (-20, 5), (-20, -5) ]:
+        ctx.translate(0, -20).rgba(0.93, 0.14, 0, 1 * self.throb)
+        ctx.begin_path().move_to(0, -20)
+        for vert in [ (20, -20), (20, 20), (0, 20), (-20, 8), (-20, -8) ]:
             ctx.line_to(*vert)
         ctx.close_path().stroke()
 
