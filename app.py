@@ -12,12 +12,47 @@ import app
 import settings
 
 from events.input import Buttons, BUTTON_TYPES
+from tildagonos import tildagonos
 from system.eventbus import eventbus
 from system.hexpansion.config import HexpansionConfig
 from system.hexpansion.util import get_app_by_vid_pid
 from system.hexpansion.events import HexpansionMountedEvent, HexpansionUnmountedEvent
 from system.patterndisplay.events import PatternDisable, PatternEnable
 from system.scheduler.events import RequestForegroundPushEvent, RequestForegroundPopEvent
+
+
+def hsv_to_rgb(h, s, v):
+    """Utility to convert HSV colours to RGB colours"""
+
+    # If saturation is zero, then it's achromatic, we can just return a purely
+    # greyscale value
+    if s == 0.0:
+        rgb = (v, v, v)
+    else:
+        # Hue may be given as an integer number of degrees or as a normalised
+        # value between 0 and 1
+        if isinstance(h, int):
+            region = h // 60
+            remainder = h / 60 - region
+        else:
+            region = int(h * 6.0) # Intentional truncation
+            remainder = h * 6.0 - region
+        a = v * (1.0 - s)
+        b = v * (1.0 - remainder * s)
+        c = v * (1.0 - (1.0 - remainder) * s)
+        if region == 0:
+            rgb = (v, c, a)
+        elif region == 1:
+            rgb = (b, v, a)
+        elif region == 2:
+            rgb = (a, v, c)
+        elif region == 3:
+            rgb = (a, b, v)
+        elif region == 4:
+            rgb = (c, a, v)
+        else: # region == 5
+            rgb = (v, a, b)
+    return rgb
 
 
 class Throbber:
@@ -100,9 +135,13 @@ class Speed:
         {'unit': "m/s", 'factor': 0.514, 'range': [5, 10]},
     ]
 
+    LEDS = 12
+
     def __init__(self):
         # Current speed from GPS
         self.speed = 0.0
+        self.display_speed = 0.0
+        self.max_speed = 0
 
         # Selected display units and dial range
         self.units = 1
@@ -110,11 +149,49 @@ class Speed:
 
         self.valid = False
 
+        # Get LED brightness from settings
+        brightness = settings.get("pattern_brightness")
+        if not brightness:
+            brightness = 0.1
+
+        # Pre-compute LED colours, honouring the system wide LED brightness
+        # setting
+        self.leds = []
+        for i in range(Speed.LEDS):
+            hue = int((i // 4) * (120 / 2))
+            r,g,b = map(lambda x: int(x * 255), hsv_to_rgb(hue, 1.0, 1.0 * brightness))
+            self.leds.append((r, g, b))
+        self.leds = list(reversed(self.leds))
+
     def select_next_units(self, direction):
         self.units = (self.units + direction) % len(Speed.UNITS)
+        self.update_display_speeds()
 
     def select_next_range(self, direction):
         self.range = (self.range + direction) % len(Speed.UNITS[self.units]['range'])
+        self.update_display_speeds()
+
+    def handle_gps_event(self, e):
+        self.valid = e.position is not None
+        self.speed = e.speed
+        self.update_display_speeds()
+
+    def update_display_speeds(self):
+        self.display_speed = self.speed * Speed.UNITS[self.units]['factor']
+        self.max_speed = Speed.UNITS[self.units]['range'][self.range]
+
+        # Update LED gauge indicator
+        speed_per_led = self.max_speed / (Speed.LEDS - 2)
+        for i in range(Speed.LEDS):
+            # Offset LED id by half the number of LEDs, since our zero is at
+            # the bottom not the top
+            led = int(i + Speed.LEDS / 2) % Speed.LEDS + 1
+
+            if self.display_speed >= speed_per_led * i:
+                tildagonos.leds[led] = self.leds[i]
+            else:
+                tildagonos.leds[led] = (0, 0, 0)
+        tildagonos.leds.write()
 
     def draw(self, ctx):
         ctx.save()
@@ -131,11 +208,7 @@ class Speed:
         # Render speed read out
         if self.valid:
             ctx.font_size = 65
-            ctx.text_align = ctx.RIGHT
-            ctx.text_baseline = ctx.MIDDLE
-            spd_pos = (ctx.text_width("0.0") / 2, 5)
-            speed_converted = self.speed * Speed.UNITS[self.units]['factor']
-            ctx.move_to(*spd_pos).text(f"{speed_converted:.1f}")
+            ctx.move_to(0, 0).text(f"{self.display_speed:.1f}")
 
         ctx.restore()
 
@@ -143,7 +216,6 @@ class Speed:
 
         # Render dial graticules
         sectors = 5
-        max_speed = Speed.UNITS[self.units]['range'][self.range]
         arc_extent = math.pi * 2 - math.pi / 3
         arc_sector = arc_extent / sectors
         ctx.line_width = 8
@@ -153,7 +225,7 @@ class Speed:
         ctx.rgb(1, 1, 1)
         for i in range(sectors + 1):
             rot = math.pi / 6 + arc_sector * i
-            spd = int((max_speed / sectors) * i)
+            spd = int((self.max_speed / sectors) * i)
             ctx.save()
             ctx.move_to(-(math.sin(rot) * 80), math.cos(rot) * 80).text(f"{spd}")
             ctx.rotate(rot)
@@ -161,11 +233,6 @@ class Speed:
             ctx.restore()
 
         ctx.restore()
-
-
-    def _handle_gps_event(self, e):
-        self.valid = e.position is not None
-        self.speed = e.speed
 
 
 class Speedo(app.App):
@@ -191,17 +258,12 @@ class Speedo(app.App):
         # Disable firmware LED pattern
         eventbus.emit(PatternDisable())
 
-        # Get LED brightness from settings
-        self.brightness = settings.get("pattern_brightness")
-        if not self.brightness:
-            self.brightness = 0.1
-
     def _find_gps_module(self):
         # Get GPS app from hexpansion EEPROM
         self.gps = get_app_by_vid_pid(0xCAFE, 0x1295)
         # Subscribe to GPS events
         if self.gps:
-            eventbus.on(self.gps.GPSEvent, self.speed._handle_gps_event, self)
+            eventbus.on(self.gps.GPSEvent, self.speed.handle_gps_event, self)
 
     def update(self, delta):
         # Exit the app
@@ -253,22 +315,17 @@ class Speedo(app.App):
         # Disable firmware LED pattern
         eventbus.emit(PatternDisable())
 
-        # Get LED brightness from settings
-        self.brightness = settings.get("pattern_brightness")
-        if not self.brightness:
-            self.brightness = 0.1
-
     async def _pause(self, _: RequestForegroundPopEvent):
         # Re-enable firmware LED pattern when we minimise
         eventbus.emit(PatternEnable())
 
-    async def _mounted(self, e: HexpansionMountedEvent):
+    async def _mounted(self, _: HexpansionMountedEvent):
         if not self.gps:
             self._find_gps_module()
 
     async def _unmounted(self, e: HexpansionUnmountedEvent):
         if e.port == self.gps.config.port:
-            eventbus.remove(self.gps.GPSEvent, self.speed._handle_gps_event, self)
+            eventbus.remove(self.gps.GPSEvent, self.speed.handle_gps_event, self)
             self.gps = None
             self.speed.valid = False
 
