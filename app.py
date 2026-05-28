@@ -137,9 +137,9 @@ class Speed:
 
     LEDS = 12
 
-    SECTOR_GREEN = (0, 0.75, 0.29)
-    SECTOR_AMBER = (1, 0.75, 0)
-    SECTOR_RED = (0.93, 0.14, 0)
+    SECTOR_GREEN = (0.0, 0.75, 0.29)
+    SECTOR_AMBER = (1.0, 0.75, 0.0)
+    SECTOR_RED = (0.93, 0.14, 0.0)
     SECTOR_COLOURS = [
         SECTOR_GREEN,
         [ [0.0, SECTOR_GREEN], [1.0, SECTOR_AMBER] ],
