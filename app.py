@@ -137,6 +137,17 @@ class Speed:
 
     LEDS = 12
 
+    SECTOR_GREEN = (0, 0.75, 0.29)
+    SECTOR_AMBER = (1, 0.75, 0)
+    SECTOR_RED = (0.93, 0.14, 0)
+    SECTOR_COLOURS = [
+        SECTOR_GREEN,
+        [ [0.0, SECTOR_GREEN], [1.0, SECTOR_AMBER] ],
+        SECTOR_AMBER,
+        [ [0.0, SECTOR_AMBER], [1.0, SECTOR_RED] ],
+        SECTOR_RED,
+    ]
+
     def __init__(self):
         # Current speed from GPS
         self.speed = 0.0
@@ -162,6 +173,8 @@ class Speed:
             r,g,b = map(lambda x: int(x * 255), hsv_to_rgb(hue, 1.0, 1.0 * brightness))
             self.leds.append((r, g, b))
         self.leds = list(reversed(self.leds))
+
+        self.update_display_speeds()
 
     def select_next_units(self, direction):
         self.units = (self.units + direction) % len(Speed.UNITS)
@@ -197,7 +210,7 @@ class Speed:
         ctx.save()
         ctx.rgb(1, 1, 1)
 
-        # Render units indicator widget
+        # Render units indicator selector widget
         ctx.font_size = 25
         ctx.text_align = ctx.CENTER
         ctx.text_baseline = ctx.MIDDLE
@@ -205,7 +218,7 @@ class Speed:
         ctx.move_to(0, 85).text(Speed.UNITS[self.units]['unit'])
         ctx.begin_path().move_to(0, 106).line_to(-10, 100).line_to(10, 100).close_path().fill()
 
-        # Render speed read out
+        # Render speed read out in big at the centre of the screen
         if self.valid:
             ctx.font_size = 65
             ctx.move_to(0, 0).text(f"{self.display_speed:.1f}")
@@ -214,22 +227,62 @@ class Speed:
 
         ctx.save()
 
-        # Render dial graticules
+        # Dial arc extends for 5/6ths of the circumference of the dial and
+        # is offset by 90° to put the 1/6th gap at the bottom
+        arc_begin = math.pi / 2 + math.pi / 6
+        arc_end = math.pi / 2 + (2 * math.pi - math.pi / 6)
+        arc_extent = arc_end - arc_begin
+
+        # Dial arc is divided into sectors of equal size, for the major
+        # graticules
         sectors = 5
-        arc_extent = math.pi * 2 - math.pi / 3
         arc_sector = arc_extent / sectors
-        ctx.line_width = 8
+
+        # Render a separate indication arc for each sector so we can colour
+        # them separately
+        for i in range(sectors):
+            sector_begin = -(arc_sector / 2)
+            sector_end = arc_sector / 2
+
+            ctx.save()
+            ctx.rotate(arc_begin + arc_sector / 2)
+            ctx.rotate(arc_sector * i)
+            col = Speed.SECTOR_COLOURS[i]
+            if isinstance(col, tuple):
+                ctx.rgb(*col)
+            else:
+                # Gradient across the vertical size of the sector
+                ctx.linear_gradient(0, math.sin(sector_begin) * 120, 0, -math.sin(sector_begin) * 120)
+                for stop in col:
+                    ctx.add_stop(stop[0], stop[1], 1.0)
+            ctx.begin_path()
+            ctx.arc(0, 0, 120, sector_begin, sector_end, False)
+            ctx.arc(0, 0, 100, sector_end, sector_begin, True)
+            ctx.close_path().fill()
+            ctx.rgb(1, 1, 1)
+            ctx.begin_path()
+            ctx.arc(0, 0, 120, sector_begin, sector_end, False)
+            ctx.arc(0, 0, 100, sector_end, sector_begin, True)
+            ctx.close_path().stroke()
+            ctx.restore()
+
+        # Render dial graticules
         ctx.font_size = 22
         ctx.text_align = ctx.CENTER
         ctx.text_baseline = ctx.MIDDLE
         ctx.rgb(1, 1, 1)
-        for i in range(sectors + 1):
-            rot = math.pi / 6 + arc_sector * i
-            spd = int((self.max_speed / sectors) * i)
+        for i in range((sectors + 1) * 2 - 1):
+            ctx.line_width = 4 if i % 2 else 8
+            rot = math.pi / 6 + (arc_sector / 2) * i
             ctx.save()
-            ctx.move_to(-(math.sin(rot) * 80), math.cos(rot) * 80).text(f"{spd}")
+            if i % 2:
+                ctx.line_width = 4
+            else:
+                spd = int((self.max_speed / sectors) * (i / 2))
+                ctx.move_to(-(math.sin(rot) * 75), math.cos(rot) * 75).text(f"{spd}")
+                ctx.line_width = 8
             ctx.rotate(rot)
-            ctx.move_to(0, 120).line_to(0, 95).stroke()
+            ctx.move_to(0, 120).line_to(0, 90).stroke()
             ctx.restore()
 
         ctx.restore()
