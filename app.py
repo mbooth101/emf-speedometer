@@ -140,13 +140,7 @@ class Speed:
     SECTOR_GREEN = (0.0, 0.75, 0.29)
     SECTOR_AMBER = (1.0, 0.75, 0.0)
     SECTOR_RED = (0.93, 0.14, 0.0)
-    SECTOR_COLOURS = [
-        SECTOR_GREEN,
-        [ [0.0, SECTOR_GREEN], [1.0, SECTOR_AMBER] ],
-        SECTOR_AMBER,
-        [ [0.0, SECTOR_AMBER], [1.0, SECTOR_RED] ],
-        SECTOR_RED,
-    ]
+    GRADIENT = [ SECTOR_RED, SECTOR_RED, SECTOR_AMBER, SECTOR_AMBER, SECTOR_GREEN, SECTOR_GREEN ]
 
     def __init__(self):
         # Current speed from GPS
@@ -225,59 +219,76 @@ class Speed:
 
         ctx.restore()
 
+        self._draw_indicator(ctx)
+        self._draw_graticules(ctx)
+
+    def _draw_indicator(self, ctx):
+        """Draw the dial indicator arc"""
+
         ctx.save()
 
-        # Dial arc extends for 5/6ths of the circumference of the dial and
-        # is offset by 90° to put the 1/6th gap at the bottom
-        arc_begin = math.pi / 2 + math.pi / 6
-        arc_end = math.pi / 2 + (2 * math.pi - math.pi / 6)
-        arc_extent = arc_end - arc_begin
+        # Rotate so the gap in the dial is at the bottom of the screen
+        ctx.rotate(math.pi / 3)
+
+        # Define a gradient for the indicator arc, but offset the start point
+        # gradient by 90° so it's the same as an arc's start point
+        ctx.conic_gradient(0, 0, math.pi / 2, 1)
+        for idx, colour in enumerate(Speed.GRADIENT):
+            ctx.add_stop((1 / 6) * idx, colour, 1.0)
+
+        # The arc is bounded to these limits that contain the gradient, 5/6ths
+        # of the circumference of the dial
+        arc_min = math.pi / 3
+        arc_max = 2 * math.pi
+
+        # Filled arc
+        ctx.begin_path()
+        ctx.arc(0, 0, 120, arc_min, arc_max, False)
+        ctx.arc(0, 0, 98, arc_max, arc_min, True)
+        ctx.close_path().fill()
+
+        # Outline
+        ctx.rgb(1, 1, 1)
+        ctx.begin_path()
+        ctx.arc(0, 0, 120, arc_min, arc_max, False)
+        ctx.arc(0, 0, 98, arc_max, arc_min, True)
+        ctx.close_path().stroke()
+
+        ctx.restore()
+
+    def _draw_graticules(self, ctx):
+        """Draw the dial graticules and scale labels"""
+
+        ctx.save()
+
+        # The extent of the dial arc is 5/6ths of the circumference of the dial
+        arc_extent = 2 * math.pi - math.pi / 3
 
         # Dial arc is divided into sectors of equal size, for the major
         # graticules
         sectors = 5
         arc_sector = arc_extent / sectors
 
-        # Render a separate indication arc for each sector so we can colour
-        # them separately
-        for i in range(sectors):
-            sector_begin = -(arc_sector / 2)
-            sector_end = arc_sector / 2
-
-            ctx.save()
-            ctx.rotate(arc_begin + arc_sector / 2)
-            ctx.rotate(arc_sector * i)
-            col = Speed.SECTOR_COLOURS[i]
-            if isinstance(col, tuple):
-                ctx.rgb(*col)
-            else:
-                # Gradient across the vertical size of the sector
-                ctx.linear_gradient(0, math.sin(sector_begin) * 120, 0, -math.sin(sector_begin) * 120)
-                for stop in col:
-                    ctx.add_stop(stop[0], stop[1], 1.0)
-            ctx.begin_path()
-            ctx.arc(0, 0, 120, sector_begin, sector_end, False)
-            ctx.arc(0, 0, 100, sector_end, sector_begin, True)
-            ctx.close_path().fill()
-            ctx.rgb(1, 1, 1)
-            ctx.begin_path()
-            ctx.arc(0, 0, 120, sector_begin, sector_end, False)
-            ctx.arc(0, 0, 100, sector_end, sector_begin, True)
-            ctx.close_path().stroke()
-            ctx.restore()
+        # Number of major graticules includes a final one at the end of the
+        # last sector
+        graticules = sectors + 1
 
         # Render dial graticules
         ctx.font_size = 22
         ctx.text_align = ctx.CENTER
         ctx.text_baseline = ctx.MIDDLE
         ctx.rgb(1, 1, 1)
-        for i in range((sectors + 1) * 2 - 1):
-            ctx.line_width = 4 if i % 2 else 8
+
+        # Iterate through double the number of graticules minus one so we can
+        # draw intermediate minor graticules between the major graticules
+        for i in range(graticules * 2 - 1):
             rot = math.pi / 6 + (arc_sector / 2) * i
             ctx.save()
             if i % 2:
+                # Minor intermediate graticule
                 ctx.line_width = 4
             else:
+                # Major graticule and scale label
                 spd = int((self.max_speed / sectors) * (i / 2))
                 ctx.move_to(-(math.sin(rot) * 75), math.cos(rot) * 75).text(f"{spd}")
                 ctx.line_width = 8
