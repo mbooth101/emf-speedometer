@@ -152,7 +152,8 @@ class Speed:
         self.units = 1
         self.range = 0
 
-        self.valid = False
+        # Display a message instead of a speed readout
+        self.status = None
 
         # Get LED brightness from settings
         brightness = settings.get("pattern_brightness")
@@ -179,7 +180,6 @@ class Speed:
         self.update_display_speeds()
 
     def handle_gps_event(self, e):
-        self.valid = e.position is not None
         self.speed = e.speed
         self.update_display_speeds()
 
@@ -200,11 +200,22 @@ class Speed:
                 tildagonos.leds[led] = (0, 0, 0)
         tildagonos.leds.write()
 
+    def update(self, delta):
+        if self.status:
+            self.status.update(delta)
+
     def draw(self, ctx):
+        self._draw_speed(ctx)
+        self._draw_indicator(ctx)
+        self._draw_graticules(ctx)
+
+    def _draw_speed(self, ctx):
+        """Draw the speed read out and units chooser widget"""
+
         ctx.save()
         ctx.rgb(1, 1, 1)
 
-        # Render units indicator selector widget
+        # Render current units selection and up/down arrows
         ctx.font_size = 25
         ctx.text_align = ctx.CENTER
         ctx.text_baseline = ctx.MIDDLE
@@ -212,15 +223,15 @@ class Speed:
         ctx.move_to(0, 85).text(Speed.UNITS[self.units]['unit'])
         ctx.begin_path().move_to(0, 106).line_to(-10, 100).line_to(10, 100).close_path().fill()
 
-        # Render speed read out in big at the centre of the screen
-        if self.valid:
+        # Draw status message if there is one
+        if self.status:
+            self.status.draw(ctx)
+        else:
+            # Else render speed readout in big at the centre of the screen
             ctx.font_size = 65
             ctx.move_to(0, 0).text(f"{self.display_speed:.1f}")
 
         ctx.restore()
-
-        self._draw_indicator(ctx)
-        self._draw_graticules(ctx)
 
     def _draw_indicator(self, ctx):
         """Draw the dial indicator arc"""
@@ -309,8 +320,6 @@ class Speedo(app.App):
         self.speed = Speed()
 
         self.gps = None
-        self.status = None
-
         self._find_gps_module()
 
         # Subscribe to events
@@ -354,26 +363,19 @@ class Speedo(app.App):
         # Check GPS module status
         if not self.gps:
             # GPS hexpansion module is not plugged in
-            self.status = Speedo.STATUS_MISSING
+            self.speed.status = Speedo.STATUS_MISSING
         if self.gps and not self.gps.position:
             # GPS hexpansion is plugged, but there is no positioning fix
-            self.status = Speedo.STATUS_WAIT
+            self.speed.status = Speedo.STATUS_WAIT
         if self.gps and self.gps.position:
             # There is a valid positioning fix
-            self.status = None
+            self.speed.status = None
 
-        # Update status message
-        if self.status:
-            self.status.update(delta)
+        self.speed.update(delta)
 
     def draw(self, ctx):
         ctx.rgb(0.13, 0.19, 0.09).rectangle(-120, -120, 240, 240).fill()
-
         self.speed.draw(ctx)
-
-        # Render status message/speed readout
-        if self.status:
-            self.status.draw(ctx)
 
     async def _resume(self, _: RequestForegroundPushEvent):
         # Disable firmware LED pattern
