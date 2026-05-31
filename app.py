@@ -129,10 +129,10 @@ class Speed:
 
     # Conversion factors from knots and dial ranges
     UNITS = [
-        {'unit': "kts", 'factor': 1.0, 'range': [10, 20]},
-        {'unit': "mph", 'factor': 1.151, 'range': [10, 20]},
-        {'unit': "km/h", 'factor': 1.852, 'range': [15, 30]},
-        {'unit': "m/s", 'factor': 0.514, 'range': [5, 10]},
+        {'unit': "kts", 'factor': 1.0, 'range': [10, 20, 30]},
+        {'unit': "mph", 'factor': 1.151, 'range': [10, 20, 30]},
+        {'unit': "km/h", 'factor': 1.852, 'range': [15, 30, 50]},
+        {'unit': "m/s", 'factor': 0.514, 'range': [5, 10, 15]},
     ]
 
     LEDS = 12
