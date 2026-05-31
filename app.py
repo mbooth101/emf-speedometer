@@ -252,17 +252,21 @@ class Speed:
         arc_min = math.pi / 3
         arc_max = 2 * math.pi
 
+        # Scale the arc according to the speed
+        factor = min(1.0, self.display_speed / self.max_speed)
+        arc_extent = arc_min + (arc_max - arc_min) * factor
+
         # Filled arc
         ctx.begin_path()
-        ctx.arc(0, 0, 120, arc_min, arc_max, False)
-        ctx.arc(0, 0, 98, arc_max, arc_min, True)
+        ctx.arc(0, 0, 120, arc_min, arc_extent, False)
+        ctx.arc(0, 0, 98, arc_extent, arc_min, True)
         ctx.close_path().fill()
 
         # Outline
         ctx.rgb(1, 1, 1)
         ctx.begin_path()
-        ctx.arc(0, 0, 120, arc_min, arc_max, False)
-        ctx.arc(0, 0, 98, arc_max, arc_min, True)
+        ctx.arc(0, 0, 119, arc_min, arc_extent, False)
+        ctx.arc(0, 0, 97, arc_extent, arc_min, True)
         ctx.close_path().stroke()
 
         ctx.restore()
