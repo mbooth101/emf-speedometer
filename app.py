@@ -162,6 +162,7 @@ class Speed:
 
         # Pre-compute LED colours, honouring the system wide LED brightness
         # setting
+        self.led_update = False
         self.leds = []
         for i in range(Speed.LEDS):
             hue = int((i // 4) * (120 / 2))
@@ -187,18 +188,8 @@ class Speed:
         self.display_speed = self.speed * Speed.UNITS[self.units]['factor']
         self.max_speed = Speed.UNITS[self.units]['range'][self.range]
 
-        # Update LED gauge indicator
-        speed_per_led = self.max_speed / (Speed.LEDS - 2)
-        for i in range(Speed.LEDS):
-            # Offset LED id by half the number of LEDs, since our zero is at
-            # the bottom not the top
-            led = int(i + Speed.LEDS / 2) % Speed.LEDS + 1
-
-            if self.display_speed >= speed_per_led * i:
-                tildagonos.leds[led] = self.leds[i]
-            else:
-                tildagonos.leds[led] = (0, 0, 0)
-        tildagonos.leds.write()
+        # Cause LEDs to be updated on the next frame
+        self.led_update = True
 
     def update(self, delta):
         if self.status:
@@ -208,6 +199,20 @@ class Speed:
         self._draw_speed(ctx)
         self._draw_indicator(ctx)
         self._draw_graticules(ctx)
+
+        if self.led_update:
+            self.led_update = False
+            speed_per_led = self.max_speed / (Speed.LEDS - 2)
+            for i in range(Speed.LEDS):
+                # Offset LED id by half the number of LEDs, since our zero is at
+                # the bottom not the top
+                led = int(i + Speed.LEDS / 2) % Speed.LEDS + 1
+
+                if self.display_speed >= speed_per_led * i:
+                    tildagonos.leds[led] = self.leds[i]
+                else:
+                    tildagonos.leds[led] = (0, 0, 0)
+            tildagonos.leds.write()
 
     def _draw_speed(self, ctx):
         """Draw the speed read out and units chooser widget"""
