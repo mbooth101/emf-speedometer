@@ -32,4 +32,4 @@ description = "Turn your badge into a speedometer"
 # increased, we interpret this as a new version being released.
 #
 # Version number must be an integer!
-version = "1"
+version = "3"
