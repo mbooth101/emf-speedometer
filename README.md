@@ -4,6 +4,8 @@ Strap your Tildagon to your Hacky Racer, radio-controlled Henry Hoover, karaoke 
 
 Written as a demo for my event-based GPS Hexpansion firmware concept, and therefore requires the presence of a GPS Hexpansion such as that made by [The Machine Shop](https://themachineshop.uk/product/gps-hexpansion/) initialised with the latest GPS Hexpansion firmware.
 
+**NOTE:** This app requires Tildagon OS v2.0.0 or newer!
+
 ### Controls
 
 * A/D buttons: Cycle through units (knots, mph, km/h, m/s)

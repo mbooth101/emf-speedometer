@@ -9,16 +9,26 @@ License: MIT
 import math
 
 import app
+import ota
 import settings
 
 from events.input import Buttons, BUTTON_TYPES
 from tildagonos import tildagonos
 from system.eventbus import eventbus
 from system.hexpansion.config import HexpansionConfig
-from system.hexpansion.util import get_app_by_vid_pid
-from system.hexpansion.events import HexpansionMountedEvent, HexpansionUnmountedEvent
+from system.hexpansion.events import HexpansionMountedEvent #, HexpansionUnmountedEvent
 from system.patterndisplay.events import PatternDisable, PatternEnable
 from system.scheduler.events import RequestForegroundPushEvent, RequestForegroundPopEvent
+
+
+def get_app_by_vid_pid_shim(vid, pid):
+    try:
+        # This function only available on Tildagon OS v2 or newer
+        from system.hexpansion.util import get_app_by_vid_pid
+        return get_app_by_vid_pid(vid, pid)
+    except ImportError:
+        print(f"WARNING: get_app_by_vid_pid() unavailable on Tildagon OS {ota.get_version()}! Please upgrade to v2.0.0 or newer.")
+        return None
 
 
 def hsv_to_rgb(h, s, v):
@@ -335,14 +345,22 @@ class Speedo(app.App):
         eventbus.on_async(RequestForegroundPushEvent, self._resume, self)
         eventbus.on_async(RequestForegroundPopEvent, self._pause, self)
         eventbus.on_async(HexpansionMountedEvent, self._mounted, self)
-        eventbus.on_async(HexpansionUnmountedEvent, self._unmounted, self)
+
+        try:
+            # This event only available on Tildagon OS v2 or newer
+            from system.hexpansion.events import HexpansionUnmountedEvent
+            eventbus.on_async(HexpansionUnmountedEvent, self._unmounted, self)
+        except ImportError:
+            # Fall back to using the removal event instead
+            from system.hexpansion.events import HexpansionRemovalEvent
+            eventbus.on_async(HexpansionRemovalEvent, self._unmounted, self)
 
         # Disable firmware LED pattern
         eventbus.emit(PatternDisable())
 
     def _find_gps_module(self):
         # Get GPS app from hexpansion EEPROM
-        self.gps = get_app_by_vid_pid(0xCAFE, 0x1295)
+        self.gps = get_app_by_vid_pid_shim(0xCAFE, 0x1295)
         # Subscribe to GPS events
         if self.gps:
             eventbus.on(self.gps.GPSEvent, self.speed.handle_gps_event, self)
