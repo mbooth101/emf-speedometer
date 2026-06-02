@@ -394,12 +394,12 @@ class Speedo(app.App):
         # Re-enable firmware LED pattern when we minimise
         eventbus.emit(PatternEnable())
 
-    async def _mounted(self, _: HexpansionMountedEvent):
+    async def _mounted(self, _):
         if not self.gps:
             self._find_gps_module()
 
-    async def _unmounted(self, e: HexpansionUnmountedEvent):
-        if e.port == self.gps.config.port:
+    async def _unmounted(self, e):
+        if self.gps and e.port == self.gps.config.port:
             eventbus.remove(self.gps.GPSEvent, self.speed.handle_gps_event, self)
             self.gps = None
             self.speed.valid = False
