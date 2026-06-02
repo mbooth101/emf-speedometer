@@ -90,49 +90,66 @@ class Throbber:
         pass
 
 
-class WaitingForFixStatus(Throbber):
+class StatusThrobber(Throbber):
+
+    def __init__(self, msg):
+        super().__init__()
+        self.msg = msg
 
     def draw(self, ctx):
         ctx.save()
-
-        # Display message
-        ctx.font_size = 25
+        ctx.font_size = 20
         ctx.text_align = ctx.CENTER
         ctx.text_baseline = ctx.TOP
-        ctx.rgb(0.9, 0.9, 0.9).move_to(0, 15).text("Awaiting GPS Fix")
+        ctx.rgb(0.9, 0.9, 0.9).move_to(0, 15).text(self.msg)
+        self.draw_icon(ctx)
+        ctx.restore()
 
-        # Display icon
+    def draw_icon(self, ctx):
+        pass
+
+
+class WaitingForFixStatus(StatusThrobber):
+
+    def __init__(self):
+        super().__init__("Waiting For GPS Fix")
+
+    def draw_icon(self, ctx):
         ctx.line_width = 5
-        ctx.translate(0, -20).rotate(math.pi / 4).rgba(1, 0.75, 0, 1 * self.throb)
+        ctx.translate(0, -20).rotate(math.pi / 4).rgba(1.0, 0.75, 0.0, 1 * self.throb)
         ctx.begin_path()
         ctx.arc(0, 0, 20, 0, math.pi, False)
         ctx.close_path().stroke()
         ctx.move_to(0, 0).line_to(0, -10).stroke()
         ctx.arc(0, -12, 4, 0, 2 * math.pi, False).fill()
 
-        ctx.restore()
 
+class HexpansionMissingStatus(StatusThrobber):
 
-class HexpansionMissingStatus(Throbber):
+    def __init__(self):
+        super().__init__("GPS Hexpansion Missing")
 
-    def draw(self, ctx):
-        ctx.save()
-
-        # Display message
-        ctx.font_size = 25
-        ctx.text_align = ctx.CENTER
-        ctx.text_baseline = ctx.TOP
-        ctx.rgb(0.9, 0.9, 0.9).move_to(0, 15).text("No GPS Hexpansion")
-
-        # Display icon
+    def draw_icon(self, ctx):
         ctx.line_width = 5
-        ctx.translate(0, -20).rgba(0.93, 0.14, 0, 1 * self.throb)
+        ctx.translate(0, -20).rgba(0.93, 0.14, 0.0, 1 * self.throb)
         ctx.begin_path().move_to(0, -20)
         for vert in [ (20, -20), (20, 20), (0, 20), (-20, 8), (-20, -8) ]:
             ctx.line_to(*vert)
         ctx.close_path().stroke()
 
-        ctx.restore()
+
+class UpgradeRequiredStatus(StatusThrobber):
+
+    def __init__(self):
+        super().__init__("Tildagon OS v2.0.0 Required")
+
+    def draw_icon(self, ctx):
+        ctx.line_width = 5
+        ctx.translate(0, -20).rgba(0.0, 0.75, 0.29, 1 * self.throb)
+        ctx.begin_path().move_to(0, -20)
+        for vert in [ (-20, 0), (-10, 0), (-10, 20), (10, 20), (10, 0), (20, 0) ]:
+            ctx.line_to(*vert)
+        ctx.close_path().stroke()
 
 
 class Speed:
@@ -333,6 +350,7 @@ class Speedo(app.App):
 
     STATUS_MISSING = HexpansionMissingStatus()
     STATUS_WAIT = WaitingForFixStatus()
+    STATUS_UPGRADE = UpgradeRequiredStatus()
 
     def __init__(self):
         self.button_states = Buttons(self)
@@ -388,15 +406,18 @@ class Speedo(app.App):
             self.button_states.clear()
 
         # Check GPS module status
-        if not self.gps:
-            # GPS hexpansion module is not plugged in
-            self.speed.status = Speedo.STATUS_MISSING
-        if self.gps and not self.gps.position:
-            # GPS hexpansion is plugged, but there is no positioning fix
-            self.speed.status = Speedo.STATUS_WAIT
-        if self.gps and self.gps.position:
-            # There is a valid positioning fix
-            self.speed.status = None
+        if ota.get_version().startswith("v1."):
+            self.speed.status = Speedo.STATUS_UPGRADE
+        else:
+            if not self.gps:
+                # GPS hexpansion module is not plugged in
+                self.speed.status = Speedo.STATUS_MISSING
+            if self.gps and not self.gps.position:
+                # GPS hexpansion is plugged, but there is no positioning fix
+                self.speed.status = Speedo.STATUS_WAIT
+            if self.gps and self.gps.position:
+                # There is a valid positioning fix
+                self.speed.status = None
 
         self.speed.update(delta)
 
