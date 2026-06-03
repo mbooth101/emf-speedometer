@@ -65,32 +65,43 @@ def hsv_to_rgb(h, s, v):
     return rgb
 
 
-class Throbber:
+class Animatable:
 
-    def __init__(self, duration=1000):
+    def __init__(self, duration=1000, func=None):
         # Total duration of the animation in milliseconds
         self._duration = duration
+
+        # Function used for the animation curve
+        self._func = func if func else Animatable.throb
 
         # How far into the animation we are, in milliseconds
         self._elapsed = 0
 
         # Animated value
-        self.throb = 0
+        self.anim = 0.0
 
     def update(self, delta):
         self._elapsed += delta
         if self._elapsed > self._duration:
             self._elapsed = self._elapsed - self._duration
+        self.anim = self._func(self._duration, self._elapsed)
 
-        # Sinusoidal wave, normalised to between 0 and 1
-        self.throb = math.sin(((math.pi * 2) / self._duration) * self._elapsed)
-        self.throb = (self.throb + 1) * 0.5
+    @staticmethod
+    def throb(duration, elapsed):
+        """Sinusoidal wave, normalised to between 0 and 1"""
+        throb = math.sin(((math.pi * 2) / duration) * elapsed)
+        return (throb + 1) * 0.5
+
+    @staticmethod
+    def pwm50(duration, elapsed):
+        """On 50% of the time, off 50% of the time"""
+        return 1.0 if elapsed > duration / 2 else 0.0
 
     def draw(self, ctx):
         pass
 
 
-class StatusThrobber(Throbber):
+class StatusThrobber(Animatable):
 
     def __init__(self, msg):
         super().__init__()
@@ -116,7 +127,7 @@ class WaitingForFixStatus(StatusThrobber):
 
     def draw_icon(self, ctx):
         ctx.line_width = 5
-        ctx.translate(0, -20).rotate(math.pi / 4).rgba(1.0, 0.75, 0.0, 1 * self.throb)
+        ctx.translate(0, -20).rotate(math.pi / 4).rgba(1.0, 0.75, 0.0, 1 * self.anim)
         ctx.begin_path()
         ctx.arc(0, 0, 20, 0, math.pi, False)
         ctx.close_path().stroke()
@@ -131,7 +142,7 @@ class HexpansionMissingStatus(StatusThrobber):
 
     def draw_icon(self, ctx):
         ctx.line_width = 5
-        ctx.translate(0, -20).rgba(0.93, 0.14, 0.0, 1 * self.throb)
+        ctx.translate(0, -20).rgba(0.93, 0.14, 0.0, 1 * self.anim)
         ctx.begin_path().move_to(0, -20)
         for vert in [ (20, -20), (20, 20), (0, 20), (-20, 8), (-20, -8) ]:
             ctx.line_to(*vert)
@@ -145,11 +156,20 @@ class UpgradeRequiredStatus(StatusThrobber):
 
     def draw_icon(self, ctx):
         ctx.line_width = 5
-        ctx.translate(0, -20).rgba(0.0, 0.75, 0.29, 1 * self.throb)
+        ctx.translate(0, -20).rgba(0.0, 0.75, 0.29, 1 * self.anim)
         ctx.begin_path().move_to(0, -20)
         for vert in [ (-20, 0), (-10, 0), (-10, 20), (10, 20), (10, 0), (20, 0) ]:
             ctx.line_to(*vert)
         ctx.close_path().stroke()
+
+
+class Leds(Animatable):
+
+    def __init__(self):
+        super().__init__(250, Animatable.pwm50)
+
+    def draw(self, ctx):
+        pass
 
 
 class Speed:
