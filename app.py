@@ -6,9 +6,8 @@ This file is part of the Speedo app for the Tildagon
 
 License: MIT
 """
-import math
-
 import app
+import math
 import ota
 import settings
 
@@ -19,6 +18,10 @@ from system.hexpansion.config import HexpansionConfig
 from system.hexpansion.events import HexpansionMountedEvent #, HexpansionUnmountedEvent
 from system.patterndisplay.events import PatternDisable, PatternEnable
 from system.scheduler.events import RequestForegroundPushEvent, RequestForegroundPopEvent
+
+
+ARC_TWELFTH = math.pi / 6
+ARC_SIXTH = math.pi / 3
 
 
 def get_app_by_vid_pid_shim(vid, pid):
@@ -166,10 +169,70 @@ class UpgradeRequiredStatus(StatusThrobber):
 class Leds(Animatable):
 
     def __init__(self):
-        super().__init__(250, Animatable.pwm50)
+        super().__init__(500, Animatable.pwm50)
+
+        self.display_speed = 0.0
+        self.max_speed = 0
+
+        # Whether we need to update the LEDs on the next frame
+        self.redraw = False
+        self.prev_on = False
+
+        # Get LED brightness from settings
+        brightness = settings.get("pattern_brightness")
+        if not brightness:
+            brightness = 0.1
+
+        # Pre-compute LED colours, honouring the system wide LED brightness
+        # setting
+        self.cols = []
+        for i in range(12):
+            if i < 3:
+                hue = 120
+            elif i < 7:
+                hue = 60
+            else:
+                hue = 0
+            r,g,b = map(lambda x: int(x * 255), hsv_to_rgb(hue, 1.0, 1.0 * brightness))
+            self.cols.append((r, g, b))
+
+    def set_speeds(self, display_speed, max_speed):
+        self.display_speed = display_speed
+        self.max_speed = max_speed
+
+        # Request redraw if data changed
+        self.redraw = True
+
+    def update(self, delta):
+        super().update(delta)
+
+        # Request redraw if the animation value changes
+        on = self.anim > 0.0
+        if on != self.prev_on and self.display_speed > self.max_speed:
+            self.redraw = True
+            self.prev_on = on
 
     def draw(self, ctx):
-        pass
+        # No need to write LEDs every frame, just when requested
+        if self.redraw:
+            self.redraw = False
+            speed_per_led = self.max_speed / 10
+            for i in range(12):
+                # Offset LED id so the firsr matches up with the dial, instead
+                # of being the top (and +1 because LEDs are one-indexed)
+                led = int(i + 7) % 12 + 1
+
+                if i + 1 > 10:
+                    if self.anim and self.display_speed > self.max_speed:
+                        tildagonos.leds[led] = self.cols[i]
+                    else:
+                        tildagonos.leds[led] = (0, 0, 0)
+                else:
+                    if self.display_speed > speed_per_led * i:
+                        tildagonos.leds[led] = self.cols[i]
+                    else:
+                        tildagonos.leds[led] = (0, 0, 0)
+            tildagonos.leds.write()
 
 
 class Speed:
@@ -181,8 +244,6 @@ class Speed:
         {'unit': "km/h", 'factor': 1.852, 'range': [15, 30, 50]},
         {'unit': "m/s", 'factor': 0.514, 'range': [5, 10, 15]},
     ]
-
-    LEDS = 12
 
     SECTOR_GREEN = (0.0, 0.75, 0.29)
     SECTOR_AMBER = (1.0, 0.75, 0.0)
@@ -202,20 +263,7 @@ class Speed:
         # Display a message instead of a speed readout
         self.status = None
 
-        # Get LED brightness from settings
-        brightness = settings.get("pattern_brightness")
-        if not brightness:
-            brightness = 0.1
-
-        # Pre-compute LED colours, honouring the system wide LED brightness
-        # setting
-        self.led_update = False
-        self.leds = []
-        for i in range(Speed.LEDS):
-            hue = int((i // 4) * (120 / 2))
-            r,g,b = map(lambda x: int(x * 255), hsv_to_rgb(hue, 1.0, 1.0 * brightness))
-            self.leds.append((r, g, b))
-        self.leds = list(reversed(self.leds))
+        self.leds = Leds()
 
         self.update_display_speeds()
 
@@ -234,32 +282,18 @@ class Speed:
     def update_display_speeds(self):
         self.display_speed = self.speed * Speed.UNITS[self.units]['factor']
         self.max_speed = Speed.UNITS[self.units]['range'][self.range]
-
-        # Cause LEDs to be updated on the next frame
-        self.led_update = True
+        self.leds.set_speeds(self.display_speed, self.max_speed)
 
     def update(self, delta):
         if self.status:
             self.status.update(delta)
+        self.leds.update(delta)
 
     def draw(self, ctx):
         self._draw_speed(ctx)
         self._draw_indicator(ctx)
         self._draw_graticules(ctx)
-
-        if self.led_update:
-            self.led_update = False
-            speed_per_led = self.max_speed / (Speed.LEDS - 2)
-            for i in range(Speed.LEDS):
-                # Offset LED id by half the number of LEDs, since our zero is at
-                # the bottom not the top
-                led = int(i + Speed.LEDS / 2) % Speed.LEDS + 1
-
-                if self.display_speed >= speed_per_led * i:
-                    tildagonos.leds[led] = self.leds[i]
-                else:
-                    tildagonos.leds[led] = (0, 0, 0)
-            tildagonos.leds.write()
+        self.leds.draw(ctx)
 
     def _draw_speed(self, ctx):
         """Draw the speed read out and units chooser widget"""
@@ -291,13 +325,14 @@ class Speed:
         ctx.save()
 
         # Rotate so the gap in the dial is at the bottom of the screen
-        ctx.rotate(math.pi / 3)
+        ctx.rotate(ARC_SIXTH)
 
         # Define a gradient for the indicator arc, but offset the start point
         # gradient by 90° so it's the same as an arc's start point
         ctx.conic_gradient(0, 0, math.pi / 2, 1)
+        gradient_division = 1 / len(Speed.GRADIENT)
         for idx, colour in enumerate(Speed.GRADIENT):
-            ctx.add_stop((1 / 6) * idx, colour, 1.0)
+            ctx.add_stop(gradient_division * idx, colour, 1.0)
 
         # The arc is bounded to these limits that contain the gradient, 5/6ths
         # of the circumference of the dial
@@ -349,7 +384,7 @@ class Speed:
         # Iterate through double the number of graticules minus one so we can
         # draw intermediate minor graticules between the major graticules
         for i in range(graticules * 2 - 1):
-            rot = math.pi / 6 + (arc_sector / 2) * i
+            rot = ARC_TWELFTH + (arc_sector / 2) * i
             ctx.save()
             if i % 2:
                 # Minor intermediate graticule
