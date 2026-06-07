@@ -433,7 +433,7 @@ class Speedo(app.App):
 
     def _find_gps_module(self):
         # Get GPS app from hexpansion EEPROM
-        self.gps = get_app_by_vid_pid_shim(0xCAFE, 0x1295)
+        self.gps = get_app_by_vid_pid_shim(0x7CAB, 0xBEAC)
         # Subscribe to GPS events
         if self.gps:
             eventbus.on(self.gps.GPSEvent, self.speed.handle_gps_event, self)
