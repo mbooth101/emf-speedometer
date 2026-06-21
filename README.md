@@ -25,9 +25,21 @@ Available from the app store: https://apps.badge.emfcamp.org/apps/33002130/
 Cross compile with the `mpy-cross` tool and download to the badge with the `mpremote` tool:
 
 ```
+cd emf-speedometer
 mpy-cross app.py
 mpremote fs cp app.mpy :/apps/mbooth101_emf_speedometer
 ```
+
+## Firmware Install
+
+If your GPS Hexpansion arrived uninitialised, or you need to manually re-flash the Hexpansion firmware for any reason, you can do so by inserting the GPS Hexpansion into port 2 of your Tildagon, and running the following commands:
+
+```
+cd emf-speedometer
+mpremote mount EEPROM + run EEPROM/prepare_eeprom.py + cp EEPROM/gps.mpy :/hexpansion/app.mpy
+```
+
+Once complete, the GPS Hexpansion may be inserted into any port. The script is just hard-coded to port 2 for flashing the firmware.
 
 ## Demo
 
