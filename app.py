@@ -343,18 +343,21 @@ class Speed:
         factor = min(1.0, self.display_speed / self.max_speed)
         arc_extent = arc_min + (arc_max - arc_min) * factor
 
-        # Filled arc
-        ctx.begin_path()
-        ctx.arc(0, 0, 120, arc_min, arc_extent, False)
-        ctx.arc(0, 0, 98, arc_extent, arc_min, True)
-        ctx.close_path().fill()
+        # Don't bother drawing arcs that would zero radians
+        if factor > 0.0:
 
-        # Outline
-        ctx.rgb(1, 1, 1)
-        ctx.begin_path()
-        ctx.arc(0, 0, 119, arc_min, arc_extent, False)
-        ctx.arc(0, 0, 97, arc_extent, arc_min, True)
-        ctx.close_path().stroke()
+            # Filled arc
+            ctx.begin_path()
+            ctx.arc(0, 0, 120, arc_min, arc_extent, False)
+            ctx.arc(0, 0, 98, arc_extent, arc_min, True)
+            ctx.close_path().fill()
+
+            # Outline
+            ctx.rgb(1, 1, 1)
+            ctx.begin_path()
+            ctx.arc(0, 0, 119, arc_min, arc_extent, False)
+            ctx.arc(0, 0, 97, arc_extent, arc_min, True)
+            ctx.close_path().stroke()
 
         ctx.restore()
 
