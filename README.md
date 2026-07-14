@@ -18,7 +18,7 @@ This is due to making use of new Hexpansion utility functions to interact with E
 
 ### From App Store
 
-Available from the app store: https://apps.badge.emfcamp.org/apps/33002130/
+Available from the app store: https://apps.badge.emfcamp.org/apps/00432041/
 
 ### Local Install
 
