@@ -17,7 +17,7 @@ from system.eventbus import eventbus
 from system.hexpansion.config import HexpansionConfig
 from system.hexpansion.events import HexpansionMountedEvent #, HexpansionUnmountedEvent
 from system.patterndisplay.events import PatternDisable, PatternEnable
-from system.scheduler.events import RequestForegroundPushEvent, RequestForegroundPopEvent
+from system.scheduler.events import RequestStopAppEvent
 
 
 ARC_TWELFTH = math.pi / 6
@@ -411,6 +411,9 @@ class Speedo(app.App):
     STATUS_UPGRADE = UpgradeRequiredStatus()
 
     def __init__(self):
+        # Disable firmware LED pattern
+        eventbus.emit(PatternDisable())
+
         self.button_states = Buttons(self)
         self.speed = Speed()
 
@@ -418,10 +421,7 @@ class Speedo(app.App):
         self._find_gps_module()
 
         # Subscribe to events
-        eventbus.on_async(RequestForegroundPushEvent, self._resume, self)
-        eventbus.on_async(RequestForegroundPopEvent, self._pause, self)
         eventbus.on_async(HexpansionMountedEvent, self._mounted, self)
-
         try:
             # This event only available on Tildagon OS v2 or newer
             from system.hexpansion.events import HexpansionUnmountedEvent
@@ -430,9 +430,6 @@ class Speedo(app.App):
             # Fall back to using the removal event instead
             from system.hexpansion.events import HexpansionRemovalEvent
             eventbus.on_async(HexpansionRemovalEvent, self._unmounted, self)
-
-        # Disable firmware LED pattern
-        eventbus.emit(PatternDisable())
 
     def _find_gps_module(self):
         # Get GPS app from hexpansion EEPROM
@@ -445,7 +442,8 @@ class Speedo(app.App):
         # Exit the app
         if self.button_states.get(BUTTON_TYPES["CANCEL"]):
             self.button_states.clear()
-            self.minimise()
+            eventbus.emit(PatternEnable())
+            eventbus.emit(RequestStopAppEvent(self))
 
         # Units selection
         if self.button_states.get(BUTTON_TYPES["UP"]):
@@ -482,14 +480,6 @@ class Speedo(app.App):
     def draw(self, ctx):
         ctx.rgb(0.13, 0.19, 0.09).rectangle(-120, -120, 240, 240).fill()
         self.speed.draw(ctx)
-
-    async def _resume(self, _: RequestForegroundPushEvent):
-        # Disable firmware LED pattern
-        eventbus.emit(PatternDisable())
-
-    async def _pause(self, _: RequestForegroundPopEvent):
-        # Re-enable firmware LED pattern when we minimise
-        eventbus.emit(PatternEnable())
 
     async def _mounted(self, _):
         if not self.gps:
