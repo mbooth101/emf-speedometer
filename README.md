@@ -12,9 +12,10 @@ Written as a demo for my event-based GPS Hexpansion firmware concept, and theref
 
 ## Install
 
-**NOTE:** This app requires Tildagon OS v2.0.0 or newer!
-
-This is due to making use of new Hexpansion utility functions to interact with EEPROM firmware code running on the GPS module.
+> [!Note]
+> This app requires Tildagon OS v2.0.0 or newer!
+> 
+> This is due to making use of new Hexpansion utility functions to interact with EEPROM firmware code running on the GPS module.
 
 ### From App Store
 

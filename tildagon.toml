@@ -32,4 +32,8 @@ description = "Turn your badge into a speedometer"
 # increased, we interpret this as a new version being released.
 #
 # Version number must be an integer!
-version = "7"
+version = "8"
+
+[[metadata.capabilities]]
+required = true
+feature = { type = "TildagonOSMinimumVersion", version = "2.0.0" }
